@@ -32,13 +32,13 @@ export function startReminderCron() {
 
         const text = `Hello ${b.fullName || "there"},
 
-This is a reminder that your rack booking will start soon.
+           This is a reminder that your rack booking will start soon.
 
-Course: ${b.course}
-Start time: ${startTime}
+        Course: ${b.course}
+         Start time: ${startTime}
 
-Thank you,
-CCIE Rack Rentals`;
+       Thank you,
+       CCIE Rack Rentals`;
 
         await sendMail({
           to: b.email,

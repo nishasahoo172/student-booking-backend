@@ -1,16 +1,16 @@
 import jwt from "jsonwebtoken";
 
-export default function authMiddleware(req, res, next) {
-  const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+export default function auth(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
 
-  if (!token) return res.status(401).json({ message: "Unauthorized" });
+  if (!token) return res.status(401).json({ message: "Please login" });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "dev_secret");
-    req.user = decoded; // { id, email }
-    next();
-  } catch (e) {
-    return res.status(401).json({ message: "Invalid token" });
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload; // { id, email }
+    return next();
+  } catch {
+    return res.status(401).json({ message: "Please login" });
   }
 }

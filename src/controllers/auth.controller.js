@@ -1,4 +1,3 @@
-// backend/src/controllers/auth.controller.js
 import db from "../config/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -7,20 +6,22 @@ import { sendMail } from "../services/mailer.js";
 function normalizeEmail(v) {
   return String(v || "").trim().toLowerCase();
 }
-
 function safeStr(v) {
   return String(v || "").trim();
 }
 
 export async function register(req, res) {
   try {
-    // ✅ Use email as login (your UI uses email)
     const email = normalizeEmail(req.body.email || req.body.username || req.body.login);
     const password = safeStr(req.body.password);
     const fullName = safeStr(req.body.fullName);
 
-    // ✅ Frontend sends timeZone, but old backend reads timezone
     const tz = safeStr(req.body.timeZone || req.body.timezone || req.body.tz);
+
+    // optional fields
+    const phone = safeStr(req.body.phone);
+    const address = safeStr(req.body.address);
+    const country = safeStr(req.body.country);
 
     if (!email || !password) {
       return res.status(400).json({ message: "Missing credentials" });
@@ -33,14 +34,23 @@ export async function register(req, res) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // ✅ Insert user as pending (admin must approve)
     await db.execute(
-      `INSERT INTO users (email, passwordHash, fullName, status, timezone, createdAt, updatedAt)
-       VALUES (?, ?, ?, 'pending', ?, NOW(), NOW())`,
-      [email, passwordHash, fullName, tz]
+      `INSERT INTO users
+        (email, passwordHash, fullName, phone, address, country, status, timezone, createdAt, updatedAt)
+       VALUES
+        (?, ?, ?, ?, ?, ?, 'pending', ?, NOW(), NOW())`,
+      [
+        email,
+        passwordHash,
+        fullName || null,
+        phone || null,
+        address || null,
+        country || null,
+        tz || null,
+      ]
     );
 
-    // ✅ Send approval email to admin
+    // mail to admin (optional)
     const adminEmail = safeStr(process.env.ADMIN_EMAIL);
     if (adminEmail) {
       const approveUrl = `http://localhost:${process.env.PORT || 5001}/api/admin/users/approve?email=${encodeURIComponent(
@@ -68,10 +78,8 @@ export async function register(req, res) {
           text: `Approve user: ${approveUrl}`,
         });
       } catch (e) {
-        console.error("❌ admin mail error:", e?.message || e);
+        console.error("admin mail error:", e?.message || e);
       }
-    } else {
-      console.log("⚠️ ADMIN_EMAIL not set. Admin approval email not sent.");
     }
 
     return res.json({ message: "Registered. Awaiting admin approval." });
@@ -104,7 +112,6 @@ export async function login(req, res) {
 
     const user = rows[0];
 
-    // ✅ block login until approved
     if (String(user.status).toLowerCase() !== "active") {
       return res.status(403).json({
         code: "ACCOUNT_NOT_APPROVED",
@@ -119,7 +126,7 @@ export async function login(req, res) {
 
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET || "dev_secret",
+      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
