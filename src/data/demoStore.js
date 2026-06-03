@@ -130,7 +130,6 @@ export function listBusyEvents({ vendor, course, startISO, endISO }) {
     .map((b) => ({ start: b.start, end: b.end, status: b.status }));
 }
 
-
 export function listBookingsStartingSoon(now, soon) {
   const nowMs = now.getTime();
   const soonMs = soon.getTime();

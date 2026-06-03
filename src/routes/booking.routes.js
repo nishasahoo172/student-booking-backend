@@ -1,13 +1,22 @@
-import { Router } from "express";
-import requireAuth from "../middleware/auth.middleware.js";
-import { createBooking, listBookings, myCredits } from "../controllers/booking.controller.js";
+import express from "express";
+import {
+  createBooking,
+  listMyBookings,
+  myCredits,
+  purchaseHistory,
+  creditHistory,
+  buyCredits
+} from "../controllers/booking.controller.js";
 
-const router = Router();
+import { requireAuth } from "../middleware/auth.middleware.js";
 
-router.get("/", requireAuth, listBookings);
+const router = express.Router();
+
+router.get("/credits", requireAuth, myCredits);
+router.get("/bookings", requireAuth, listMyBookings);
 router.post("/", requireAuth, createBooking);
-router.get("/me/credits", requireAuth, myCredits);
-
+router.get("/me/purchase-history", requireAuth, purchaseHistory);
+// router.get("/purchase-history", requireAuth, purchaseHistory);
+router.get("/credit-history", requireAuth, creditHistory);
+router.post("/buy-credits", requireAuth, buyCredits);
 export default router;
-
-

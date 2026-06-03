@@ -3,119 +3,86 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendMail } from "../services/mailer.js";
 
-function normalizeEmail(v) {
-  return String(v || "").trim().toLowerCase();
-}
-function safeStr(v) {
-  return String(v || "").trim();
-}
+const normalize = (v) => String(v || "").trim().toLowerCase();
 
+/* ================= REGISTER ================= */
 export async function register(req, res) {
   try {
-    const email = normalizeEmail(req.body.email || req.body.username || req.body.login);
-    const password = safeStr(req.body.password);
-    const fullName = safeStr(req.body.fullName);
-
-    const tz = safeStr(req.body.timeZone || req.body.timezone || req.body.tz);
-
-    // optional fields
-    const phone = safeStr(req.body.phone);
-    const address = safeStr(req.body.address);
-    const country = safeStr(req.body.country);
+    const email = normalize(req.body.email);
+    const password = String(req.body.password || "").trim();
+    const fullName = String(req.body.fullName || "").trim();
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Missing credentials" });
+      return res.status(400).json({ message: "Missing fields" });
     }
 
-    const [exists] = await db.execute(`SELECT id FROM users WHERE email = ? LIMIT 1`, [email]);
+    const [exists] = await db.execute(
+      "SELECT id FROM users WHERE email=?",
+      [email]
+    );
     if (exists.length) {
-      return res.status(409).json({ message: "User already exists" });
+      return res.status(409).json({ message: "User exists" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 10);
 
     await db.execute(
-      `INSERT INTO users
-        (email, passwordHash, fullName, phone, address, country, status, timezone, createdAt, updatedAt)
-       VALUES
-        (?, ?, ?, ?, ?, ?, 'pending', ?, NOW(), NOW())`,
-      [
-        email,
-        passwordHash,
-        fullName || null,
-        phone || null,
-        address || null,
-        country || null,
-        tz || null,
-      ]
+      `INSERT INTO users (email, passwordHash, fullName, role, status, createdAt, updatedAt)
+       VALUES (?, ?, ?, 'user', 'pending', NOW(), NOW())`,
+      [email, hash, fullName]
     );
 
-    // mail to admin (optional)
-    const adminEmail = safeStr(process.env.ADMIN_EMAIL);
-    if (adminEmail) {
-      const approveUrl = `http://localhost:${process.env.PORT || 5001}/api/admin/users/approve?email=${encodeURIComponent(
-        email
-      )}`;
+    // User email
+    await sendMail({
+  to: email,
+  subject: "Account Created – Pending Approval",
+  html: `
+    <p>Hello ${fullName || "User"},</p>
+    <p>Your account has been created successfully.</p>
+    <p><b>Status:</b> Pending admin approval.</p>
+    <p>You will receive another email once approved.</p>
+  `,
+});
 
-      try {
-        await sendMail({
-          to: adminEmail,
-          subject: "New user pending approval",
-          html: `
-            <div style="font-family:Arial,sans-serif">
-              <h2>New user pending approval</h2>
-              <p><b>Name:</b> ${fullName || "-"}</p>
-              <p><b>Email:</b> ${email}</p>
-              <p>
-                <a href="${approveUrl}" style="display:inline-block;padding:10px 14px;background:#0b5cff;color:#fff;text-decoration:none;border-radius:6px">
-                  Approve User
-                </a>
-              </p>
-              <p style="color:#666;font-size:12px">If the button does not work, copy this link:</p>
-              <p style="font-size:12px">${approveUrl}</p>
-            </div>
-          `,
-          text: `Approve user: ${approveUrl}`,
-        });
-      } catch (e) {
-        console.error("admin mail error:", e?.message || e);
-      }
-    }
+await sendMail({
+  to: process.env.ADMIN_EMAIL,
+  subject: "New User Pending Approval",
+  html: `
+    <p><b>New user registration pending approval</b></p>
+    <p><b>Name:</b> ${fullName || "N/A"}</p>
+    <p><b>Email:</b> ${email}</p>
+    <p>Status: <b>Pending</b></p>
+    <p>Please approve the user from the Admin Dashboard.</p>
+  `,
+});
 
-    return res.json({ message: "Registered. Awaiting admin approval." });
-  } catch (err) {
-    console.error("register error:", err);
-    return res.status(500).json({ message: "Server error" });
+
+    res.json({ message: "Registered. Awaiting admin approval." });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Server error" });
   }
 }
 
+/* ================= LOGIN ================= */
 export async function login(req, res) {
   try {
-    const email = normalizeEmail(req.body.email || req.body.username || req.body.login);
-    const password = safeStr(req.body.password);
-
-    if (!email || !password) {
-      return res.status(400).json({ message: "Missing credentials" });
-    }
+    const email = normalize(req.body.email);
+    const password = String(req.body.password || "").trim();
 
     const [rows] = await db.execute(
-      `SELECT id, email, fullName, status, passwordHash
-       FROM users
-       WHERE email = ?
-       LIMIT 1`,
+      "SELECT * FROM users WHERE email=? LIMIT 1",
       [email]
     );
-
     if (!rows.length) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const user = rows[0];
-
-    if (String(user.status).toLowerCase() !== "active") {
+    if (user.status !== "active") {
       return res.status(403).json({
         code: "ACCOUNT_NOT_APPROVED",
-        message: "Account pending admin approval",
+        message: "Waiting for admin approval",
       });
     }
 
@@ -125,22 +92,20 @@ export async function login(req, res) {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    return res.json({
+    res.json({
       token,
       user: {
         id: user.id,
         email: user.email,
-        fullName: user.fullName,
-        status: user.status,
+        role: user.role,
       },
     });
-  } catch (err) {
-    console.error("login error:", err);
-    return res.status(500).json({ message: "Server error" });
+  } catch (e) {
+    res.status(500).json({ message: "Server error" });
   }
 }

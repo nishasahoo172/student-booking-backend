@@ -1,56 +1,69 @@
-// backend/src/jobs/reminders.js
 import cron from "node-cron";
-import { listBookingsStartingSoon, markReminderSent } from "../data/demoStore.js";
+import db from "../config/db.js";
 import { sendMail } from "../services/mailer.js";
 
-function formatLocalTime(iso) {
+console.log("Reminder cron loaded...");
+
+cron.schedule("* * * * *", async () => {
+
   try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
+
+    console.log("Checking reminders...");
+
+    const [rows] = await db.execute(`
+      SELECT 
+        b.id,
+        b.startTime,
+        u.email,
+        u.fullName,
+        c.name
+      FROM bookings b
+      JOIN users u ON u.id = b.userId
+      JOIN courses c ON c.id = b.courseId
+      WHERE b.reminderSent = 0
+      AND b.status = 'RESERVED'
+      AND TIMESTAMPDIFF(MINUTE, NOW(), b.startTime)
+      BETWEEN 29 AND 30
+    `);
+
+    console.log("Rows found:", rows.length);
+
+    for (const r of rows) {
+
+      console.log("Sending reminder to:", r.email);
+
+      await sendMail({
+        to: r.email,
+        subject: "Lab Starting in 20 Minutes",
+        html: `
+          <h2>Hello ${r.fullName}</h2>
+
+          <p>Your lab starts in 20 minutes.</p>
+
+          <p>
+            <b>Course:</b> ${r.name}
+          </p>
+
+          <p>
+            <b>Start Time:</b> ${r.startTime}
+          </p>
+        `
+      });
+
+      await db.execute(
+        `UPDATE bookings
+         SET reminderSent = 1
+         WHERE id = ?`,
+        [r.id]
+      );
+
+      console.log("Reminder updated:", r.id);
+    }
+
+  } catch (err) {
+
+    console.error("Reminder cron error:", err);
+
   }
-}
 
-export function startReminderCron() {
-  console.log("⏰ Reminder cron started (runs every minute, sends within next 30 minutes)");
-
-  cron.schedule("* * * * *", async () => {
-    const now = new Date();
-    const soon = new Date(now.getTime() + 30 * 60 * 1000);
-
-    const bookings = listBookingsStartingSoon(now, soon);
-
-    // ✅ helpful debug (you can remove later)
-    if (bookings.length) {
-      console.log(`[reminder] ${bookings.length} booking(s) need reminder now.`);
-    }
-
-    for (const b of bookings) {
-      try {
-        const subject = "Reminder: Your rack booking starts soon";
-        const startTime = formatLocalTime(b.start);
-
-        const text = `Hello ${b.fullName || "there"},
-
-           This is a reminder that your rack booking will start soon.
-
-        Course: ${b.course}
-         Start time: ${startTime}
-
-       Thank you,
-       CCIE Rack Rentals`;
-
-        await sendMail({
-          to: b.email,
-          subject,
-          text,
-        });
-
-        markReminderSent(b.id, new Date().toISOString());
-        console.log("✅ Reminder sent:", b.email, "|", b.course, "|", startTime);
-      } catch (err) {
-        console.error("❌ Reminder failed:", b?.email, err?.message || err);
-      }
-    }
-  });
-}
+});

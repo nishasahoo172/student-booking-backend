@@ -1,16 +1,26 @@
+// src/middleware/auth.js
 import jwt from "jsonwebtoken";
 
-export default function auth(req, res, next) {
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+export function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
 
-  if (!token) return res.status(401).json({ message: "Please login" });
+  if (!auth || !auth.startsWith("Bearer ")) {
+    return res.status(401).json({
+      message: "Authentication required. Please login.",
+    });
+  }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload; // { id, email }
-    return next();
-  } catch {
-    return res.status(401).json({ message: "Please login" });
+    const token = auth.split(" ")[1];
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "dev_secret_123"
+    );
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      message: "Invalid or expired session. Please login again.",
+    });
   }
 }
