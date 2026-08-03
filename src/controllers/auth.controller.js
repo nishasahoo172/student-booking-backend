@@ -8,10 +8,15 @@ const normalize = (v) => String(v || "").trim().toLowerCase();
 /* ================= REGISTER ================= */
 export async function register(req, res) {
   try {
-    const email = normalize(req.body.email);
-    const password = String(req.body.password || "").trim();
-    const fullName = String(req.body.fullName || "").trim();
+   const email = normalize(req.body.email);
+const password = String(req.body.password || "").trim();
+const fullName = String(req.body.fullName || "").trim();
 
+const phone = String(req.body.phone || "").trim();
+const address = String(req.body.address || "").trim();
+const country = String(req.body.country || "").trim();
+const timezone = String(req.body.timezone || "").trim();
+const courses = req.body.courses || [];
     if (!email || !password) {
       return res.status(400).json({ message: "Missing fields" });
     }
@@ -26,14 +31,104 @@ export async function register(req, res) {
 
     const hash = await bcrypt.hash(password, 10);
 
-    await db.execute(
-      `INSERT INTO users (email, passwordHash, fullName, role, status, createdAt, updatedAt)
-       VALUES (?, ?, ?, 'user', 'pending', NOW(), NOW())`,
-      [email, hash, fullName]
-    );
+  const [userResult] = await db.execute(
+ `
+ INSERT INTO users
+ (
+ email,
+ passwordHash,
+ fullName,
+ phone,
+ address,
+ country,
+ timezone,
+ role,
+ status,
+ createdAt,
+ updatedAt
+ )
+ VALUES
+ (
+ ?,
+ ?,
+ ?,
+ ?,
+ ?,
+ ?,
+ ?,
+ 'user',
+ 'pending',
+ NOW(),
+ NOW()
+ )
+ `,
+ [
+ email,
+ hash,
+ fullName,
+ phone,
+ address,
+ country,
+ timezone
+ ]
+);
 
-    // User email
-    await sendMail({
+// ================= SAVE USER COURSES =================
+
+const userId = userResult.insertId;
+
+for (const slug of courses) {
+
+  const [courseRows] = await db.execute(
+    `
+    SELECT id 
+    FROM courses
+    WHERE slug = ?
+    `,
+    [slug]
+  );
+
+
+  if (courseRows.length > 0) {
+
+    await db.execute(
+  `
+    INSERT INTO user_courses
+    (
+    userId,
+    courseId,
+    status,
+    createdAt
+     )
+    VALUES
+    (
+    ?,
+    ?,
+    'pending',
+    NOW()
+    )
+   `,
+   [
+    userId,
+    courseRows[0].id
+   ]
+  );
+
+  }
+
+}
+
+
+// ================= SEND RESPONSE FAST =================
+
+res.json({
+  message: "Registered. Awaiting admin approval."
+});
+
+
+// ================= BACKGROUND EMAILS =================
+
+sendMail({
   to: email,
   subject: "Account Created – Pending Approval",
   html: `
@@ -42,9 +137,12 @@ export async function register(req, res) {
     <p><b>Status:</b> Pending admin approval.</p>
     <p>You will receive another email once approved.</p>
   `,
+}).catch((err)=>{
+  console.error("User mail error:", err);
 });
 
-await sendMail({
+
+sendMail({
   to: process.env.ADMIN_EMAIL,
   subject: "New User Pending Approval",
   html: `
@@ -54,8 +152,9 @@ await sendMail({
     <p>Status: <b>Pending</b></p>
     <p>Please approve the user from the Admin Dashboard.</p>
   `,
+}).catch((err)=>{
+  console.error("Admin mail error:", err);
 });
-
 
     res.json({ message: "Registered. Awaiting admin approval." });
   } catch (e) {

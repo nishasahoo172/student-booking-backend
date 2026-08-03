@@ -8,7 +8,7 @@ const db = mysql.createPool({
 
   // ✅ critical for timezone correctness
   timezone: "Z",
-
+  // timezone: "+05:30",
   // ✅ return DATETIME as string so we can parse safely
   dateStrings: true,
 

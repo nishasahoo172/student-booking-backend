@@ -23,7 +23,7 @@ cron.schedule("* * * * *", async () => {
       WHERE b.reminderSent = 0
       AND b.status = 'RESERVED'
       AND TIMESTAMPDIFF(MINUTE, NOW(), b.startTime)
-      BETWEEN 29 AND 30
+      BETWEEN 19 AND 20
     `);
 
     console.log("Rows found:", rows.length);

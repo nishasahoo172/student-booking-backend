@@ -118,13 +118,10 @@ export function listBusyEvents({ vendor, course, startISO, endISO }) {
     .filter((b) => {
       if (vendor && b.vendor !== vendor) return false;
       if (course && b.course !== course) return false;
-
       // treat pending + approved as busy (prevents double booking)
       if (!["pending", "approved"].includes(b.status)) return false;
-
       const bs = new Date(b.start);
       const be = new Date(b.end);
-
       return bs < end && be > start;
     })
     .map((b) => ({ start: b.start, end: b.end, status: b.status }));

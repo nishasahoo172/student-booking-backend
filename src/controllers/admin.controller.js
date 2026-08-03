@@ -53,13 +53,185 @@ export async function approveUser(req, res) {
 
 /* ADD CREDITS */
 export async function addCredits(req, res) {
-  const { userId, amount } = req.body;
+  try {
 
-  await db.execute(
-    `INSERT INTO credit_ledger (userId, delta, reason, createdAt)
-     VALUES (?, ?, 'Admin top-up', NOW())`,
-    [userId, Number(amount)]
-  );
+    const { userId, amount } = req.body;
 
-  res.json({ message: "Credits added" });
+    const creditAmount =
+      Number(amount);
+
+    // CREDIT LEDGER
+
+    await db.execute(
+      `
+      INSERT INTO credit_ledger
+      (
+        userId,
+        delta,
+        reason,
+        createdAt
+      )
+      VALUES
+      (
+        ?,
+        ?,
+        'Admin top-up',
+        NOW()
+      )
+      `,
+      [userId, creditAmount]
+    );
+
+    // CREDIT PACKAGE
+
+    await db.execute(
+      `
+      INSERT INTO credit_packages
+      (
+        userId,
+        productName,
+        originalCredits,
+        remainingCredits,
+        totalCredits,
+        price,
+        expiryDate,
+        createdAt
+      )
+      VALUES
+      (
+        ?,
+        'Admin Credit',
+        ?,
+        ?,
+        ?,
+        0,
+       DATE_ADD(NOW(), INTERVAL 4 MONTH),
+        NOW()
+      )
+      `,
+      [
+        userId,
+        creditAmount,
+        creditAmount,
+        creditAmount
+      ]
+    );
+
+// new
+    await db.execute(
+  `
+  UPDATE users
+  SET credits =
+  (
+    SELECT COALESCE(
+      SUM(remainingCredits),
+      0
+    )
+    FROM credit_packages
+    WHERE userId = ?
+    AND expiryDate > NOW()
+  )
+  WHERE id = ?
+  `,
+  [userId, userId]
+);
+
+
+    res.json({
+      success: true,
+      message:
+        "Credits added successfully"
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message:
+        "Failed to add credits"
+    });
+
+  }
+}
+
+export async function getUserCourses(req, res) {
+
+  try {
+
+    const { userId } = req.params;
+
+    const [rows] = await db.execute(
+      `
+      SELECT courseId
+      FROM user_courses
+      WHERE userId = ?
+      `,
+      [userId]
+    );
+
+    res.json(rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      message: "Failed loading courses"
+    });
+
+  }
+
+}
+
+export async function saveUserCourses(req, res) {
+
+  try {
+
+    const { userId } = req.params;
+    const { courseIds } = req.body;
+
+    await db.execute(
+      `
+      DELETE FROM user_courses
+      WHERE userId = ?
+      `,
+      [userId]
+    );
+
+    for (const courseId of courseIds) {
+
+      await db.execute(
+        `
+        INSERT INTO user_courses
+        (
+          userId,
+          courseId
+        )
+        VALUES
+        (
+          ?,
+          ?
+        )
+        `,
+        [userId, courseId]
+      );
+
+    }
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      message: "Failed saving courses"
+    });
+
+  }
+
 }

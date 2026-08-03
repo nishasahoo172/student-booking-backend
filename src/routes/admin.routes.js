@@ -71,10 +71,20 @@ router.get("/users", async (req, res) => {
         u.phone,
         u.address,
         u.country,
-        u.role,
-        u.status,
-        u.credits,
-        u.createdAt,
+       u.role,
+       u.status,
+
+   COALESCE(
+  (
+  SELECT SUM(cp.remainingCredits)
+  FROM credit_packages cp
+  WHERE cp.userId = u.id
+  AND cp.expiryDate > NOW()
+ ),
+ 0
+ ) AS credits,
+
+   u.createdAt,
 
         COUNT(b.id) AS totalBookings,
 
@@ -101,8 +111,7 @@ router.get("/users", async (req, res) => {
 });
 
 /**
- * =========================================
- * ADMIN: LIST ALL BOOKINGS
+
  * GET /api/admin/bookings
  * =========================================
  */
@@ -129,8 +138,6 @@ router.get("/bookings", async (req, res) => {
   }
 });
 
-
-
 /**
  * =========================================
  * STUDENT BOOKINGS
@@ -138,11 +145,8 @@ router.get("/bookings", async (req, res) => {
  * =========================================
  */
 router.get("/users/:id/bookings", async (req, res) => {
-
   try {
-
     const { id } = req.params;
-
     const [rows] = await db.execute(
       `
       SELECT *
@@ -156,7 +160,6 @@ router.get("/users/:id/bookings", async (req, res) => {
     res.json(rows);
 
   } catch (err) {
-
     console.error(err);
 
     res.status(500).json({
@@ -164,26 +167,18 @@ router.get("/users/:id/bookings", async (req, res) => {
     });
 
   }
-
 });
 
+/**
+ * =========================================
+ * STUDENT CREDIT HISTORY
+ * GET /api/admin/users/:id/credits
+ * =========================================
+ */
 
-/**
- * =========================================
- * STUDENT CREDIT HISTORY
- * GET /api/admin/users/:id/credits
- * =========================================
- */
-/**
- * =========================================
- * STUDENT CREDIT HISTORY
- * GET /api/admin/users/:id/credits
- * =========================================
- */
 router.get("/users/:id/credits", async (req, res) => {
   try {
     const { id } = req.params;
-
     const [rows] = await db.execute(
       `
       SELECT *
@@ -197,16 +192,13 @@ router.get("/users/:id/credits", async (req, res) => {
     res.json(rows);
 
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       message: "Failed to load credit history"
     });
 
   }
 });
-
 
 /**
  * =========================================
@@ -218,21 +210,30 @@ router.get("/users/:id", async (req, res) => {
   try {
 
     const { id } = req.params;
-
     const [[student]] = await db.execute(
       `
-      SELECT
-        id,
-        fullName,
-        email,
-        phone,
-        country,
-        credits,
-        role,
-        status,
-        createdAt
-      FROM users
-      WHERE id=?
+  SELECT
+  id,
+  fullName,
+  email,
+  phone,
+  country,
+
+  COALESCE(
+  (
+    SELECT SUM(cp.remainingCredits)
+    FROM credit_packages cp
+    WHERE cp.userId = users.id
+    AND cp.expiryDate > NOW()
+  ),
+  0
+  ) AS credits,
+
+  role,
+  status,
+  createdAt
+  FROM users
+  WHERE id=?
       `,
       [id]
     );
@@ -246,12 +247,12 @@ router.get("/users/:id", async (req, res) => {
     const [bookings] = await db.execute(
       `
       SELECT
-        course,
-        rack,
-        startTime,
-        endTime,
-        creditsUsed,
-        status
+      course,
+      rack,
+      startTime,
+      endTime,
+      creditsUsed,
+      status
       FROM bookings
       WHERE userId=?
       ORDER BY startTime DESC
@@ -265,22 +266,17 @@ router.get("/users/:id", async (req, res) => {
     });
 
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       message: "Server error"
     });
 
   }
 });
-
 router.post("/users/:id/add-credit", async (req, res) => {
   try {
-
     const { id } = req.params;
     const { amount, reason } = req.body;
-
     await db.execute(
       `
       INSERT INTO credit_ledger
@@ -301,14 +297,37 @@ router.post("/users/:id/add-credit", async (req, res) => {
       [id, amount, reason]
     );
 
-    await db.execute(
-      `
-      UPDATE users
-      SET credits = credits + ?
-      WHERE id = ?
-      `,
-      [amount, id]
-    );
+const expiry = new Date();
+expiry.setMonth(expiry.getMonth() + 4);
+
+await db.execute(
+  `
+  INSERT INTO credit_packages
+  (
+    userId,
+    productName,
+    originalCredits,
+    remainingCredits,
+    price,
+    expiryDate
+  )
+  VALUES
+  (
+    ?,
+    'Admin Topup',
+    ?,
+    ?,
+    0,
+    ?
+  )
+  `,
+  [
+    id,
+    amount,
+    amount,
+    expiry
+  ]
+);
 
     res.json({
       success: true,
@@ -316,9 +335,7 @@ router.post("/users/:id/add-credit", async (req, res) => {
     });
 
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       message: "Failed to add credits"
     });
@@ -326,26 +343,21 @@ router.post("/users/:id/add-credit", async (req, res) => {
   }
 });
 
-
 /**
  * =========================================
  * REJECT STUDENT
  * PUT /api/admin/users/:id/reject
  * =========================================
  */
-
 router.put("/users/:id", async (req, res) => {
   try {
-
     const { id } = req.params;
-
     const {
       fullName,
       phone,
       country,
       address,
     } = req.body;
-
     await db.execute(
       `
       UPDATE users
@@ -365,16 +377,13 @@ router.put("/users/:id", async (req, res) => {
         id,
       ]
     );
-
     res.json({
       success: true,
       message: "Student updated",
     });
 
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       message: "Failed to update student",
     });
@@ -382,18 +391,12 @@ router.put("/users/:id", async (req, res) => {
   }
 });
 
-
-
 router.put(
   "/users/:id/reject",
   async (req, res) => {
-
     try {
-
       const { id } = req.params;
-
       const { reason } = req.body;
-
       await db.execute(
         `
         UPDATE users
@@ -417,21 +420,18 @@ router.put(
           `,
           [id]
         );
-
       await sendMail({
-  to: user.email,
+     to: user.email,
 
   subject:
     "CCIE Rack Rentals - Account Status Update",
 
   html: `
     <div style="
-      font-family: Arial, sans-serif;
-     
+      font-family: Arial, sans-serif;    
       margin: auto;
       padding: 20px;
     ">
-
       <h2 style="
         color: #dc2626;
         margin-bottom: 20px;
@@ -447,11 +447,9 @@ router.put(
         Thank you for your interest in
         <strong>CCIE Rack Rentals</strong>.
       </p>
-
       <p>
         We regret to inform you that your account request could not be approved at this time.
       </p>
-
       ${
         reason?.trim()
           ? `
@@ -465,13 +463,10 @@ router.put(
           `
           : ""
       }
-
       <p>
         If you believe this decision was made in error or need additional information, please contact our support team.
       </p>
-
       <br>
-
       <p>
         Best Regards,
         <br>
@@ -480,59 +475,47 @@ router.put(
 
     </div>
   `
-});
-
+   });
       res.json({
         message:
           "Student rejected successfully",
       });
 
     } catch (err) {
-
       console.error(err);
-
       res.status(500).json({
         message:
           "Failed to reject user",
       });
-
     }
-
   }
-);
+   );
 
-
-router.get("/reports/summary", async (req, res) => {
-
+  router.get("/reports/summary", async (req, res) => {
   try {
-
     const [[users]] =
       await db.execute(`
         SELECT COUNT(*) total
         FROM users
       `);
-
     const [[active]] =
       await db.execute(`
         SELECT COUNT(*) total
         FROM users
         WHERE status='active'
       `);
-
     const [[pending]] =
       await db.execute(`
         SELECT COUNT(*) total
         FROM users
         WHERE status='pending'
       `);
-
     const [[rejected]] =
       await db.execute(`
         SELECT COUNT(*) total
         FROM users
         WHERE status='rejected'
       `);
-
     const [[bookings]] =
       await db.execute(`
         SELECT COUNT(*) total
@@ -555,28 +538,21 @@ router.get("/reports/summary", async (req, res) => {
       totalBookings: bookings.total,
       totalCreditsSold: credits.total,
     });
-
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       message: "Failed To Load Reports"
     });
 
   }
-
-});
-
+  });
 
 router.put(
   "/users/:id/reactivate",
   async (req, res) => {
 
     try {
-
       const { id } = req.params;
-
       await db.execute(
         `
         UPDATE users
@@ -587,11 +563,186 @@ router.put(
         `,
         [id]
       );
-
       res.json({
         success: true,
         message:
           "Student Reactivated"
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({
+        message:
+          "Failed To Reactivate"
+      });
+    }
+  }
+);
+
+router.get(
+  "/users/:id/courses",
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [rows] = await db.execute(
+        `
+      SELECT
+      uc.courseId,
+      uc.status,
+      c.name,
+      c.slug
+
+     FROM user_courses uc
+
+     JOIN courses c
+     ON c.id = uc.courseId
+
+     WHERE uc.userId = ?
+        `,
+        [id]
+      );
+    res.json(rows);
+    } catch (err) {
+
+      console.error(err);
+      res.status(500).json({
+        message:
+          "Failed to load courses"
+      });
+    }
+  }
+);
+
+// APPROVE USER COURSE
+
+router.put(
+  "/users/:userId/courses/:courseId/approve",
+  async (req, res) => {
+
+    try {
+
+      const {
+        userId,
+        courseId
+      } = req.params;
+
+
+      await db.execute(
+        `
+        UPDATE user_courses
+        SET status='approved'
+        WHERE userId=?
+        AND courseId=?
+        `,
+        [
+          userId,
+          courseId
+        ]
+      );
+
+
+      res.json({
+        success: true,
+        message: "Course approved successfully"
+      });
+
+
+    } catch (err) {
+
+      console.error(err);
+
+      res.status(500).json({
+        message: "Failed to approve course"
+      });
+
+    }
+
+  }
+);
+
+// REMOVE COURSE ACCESS
+
+router.put(
+  "/users/:userId/courses/:courseId/remove",
+  async(req,res)=>{
+
+    try{
+
+      const {
+        userId,
+        courseId
+      } = req.params;
+
+
+      await db.execute(
+        `
+        UPDATE user_courses
+        SET status='rejected'
+        WHERE userId=?
+        AND courseId=?
+        `,
+        [
+          userId,
+          courseId
+        ]
+      );
+
+
+      res.json({
+        success:true,
+        message:"Course access removed"
+      });
+
+
+    }
+    catch(err){
+
+      console.error(err);
+
+      res.status(500).json({
+        message:"Failed removing course"
+      });
+
+    }
+
+  }
+);
+
+router.post(
+  "/users/:id/courses",
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { courseIds } = req.body;
+      await db.execute(
+        `
+        DELETE FROM user_courses
+        WHERE userId = ?
+        `,
+        [id]
+      );
+
+      for (const courseId of courseIds) {
+
+        await db.execute(
+          `
+          INSERT INTO user_courses
+          (
+            userId,
+            courseId
+          )
+          VALUES
+          (
+            ?,
+            ?
+          )
+          `,
+          [id, courseId]
+        );
+      }
+
+      res.json({
+        success: true
       });
 
     } catch (err) {
@@ -600,7 +751,102 @@ router.put(
 
       res.status(500).json({
         message:
-          "Failed To Reactivate"
+          "Failed saving courses"
+      });
+
+    }
+
+  }
+);
+
+router.post(
+  "/users/:id/assign-course",
+  async(req,res)=>{
+
+    try {
+
+      const { id } = req.params;
+
+      const { courseIds } = req.body;
+
+
+      for(const courseId of courseIds){
+
+        const [existing] = await db.execute(
+          `
+          SELECT id,status
+          FROM user_courses
+          WHERE userId=?
+          AND courseId=?
+          `, 
+          [
+            id,
+            courseId
+          ]
+        );
+
+
+        if(existing.length){
+
+          await db.execute(
+            `
+            UPDATE user_courses
+            SET status='approved'
+            WHERE userId=?
+            AND courseId=?
+            `,
+            [
+              id,
+              courseId
+            ]
+          );
+
+
+        }
+        else{
+
+
+          await db.execute(
+            `
+            INSERT INTO user_courses
+            (
+              userId,
+              courseId,
+              status,
+              createdAt
+            )
+            VALUES
+            (
+              ?,
+              ?,
+              'approved',
+              NOW()
+            )
+            `,
+            [
+              id,
+              courseId
+            ]
+          );
+
+        }
+
+      }
+
+
+      res.json({
+        success:true,
+        message:"Courses assigned successfully"
+      });
+
+
+    }
+    catch(err){
+
+      console.error(err);
+
+      res.status(500).json({
+        message:"Failed assigning courses"
       });
 
     }
@@ -609,5 +855,3 @@ router.put(
 );
 
 export default router;
-
-

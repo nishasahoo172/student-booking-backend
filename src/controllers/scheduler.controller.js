@@ -1,10 +1,13 @@
+// import db from "../config/db.js";
+// import { mysqlUtcToIso } from "../utils/datetime.js";
 import db from "../config/db.js";
 import { mysqlUtcToIso } from "../utils/datetime.js";
+import { COURSE_RACKS } from "../config/racks.js";
+
 
 function norm(v) {
   return String(v || "").trim();
 }
-
 export async function getBusy(req, res) {
   try {
     const vendor = norm(req.query.vendor);
@@ -36,20 +39,51 @@ export async function getBusy(req, res) {
       params
     );
 
-    const events = rows.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      vendor: r.vendor,
-      course: r.course,
-      rack: r.rack,
-      start: mysqlUtcToIso(r.startTime),
-      end: mysqlUtcToIso(r.endTime),
-      status: r.status,
-    }));
+    // const events = rows.map((r) => ({
+    //   id: r.id,
+    //   userId: r.userId,
+    //   vendor: r.vendor,
+    //   course: r.course,
+    //   rack: r.rack,
+    // start: r.startTime,
+    // end: r.endTime,
+    //   status: r.status,
+    // }));
 
-    return res.json({ events });
+    // return res.json({ events });
+
+    const events = rows.map((r) => ({
+  id: r.id,
+  userId: r.userId,
+  vendor: r.vendor,
+  course: r.course,
+  rack: r.rack,
+  // start: mysqlUtcToIso(r.startTime),
+  // end: mysqlUtcToIso(r.endTime),
+  start: r.startTime,
+  end: r.endTime,
+  status: r.status,
+}));
+
+const availableRacks =
+  COURSE_RACKS[course] || ["1"];
+
+
+  
+return res.json({
+  events,
+  racks: availableRacks,
+});
+
+
   } catch (err) {
     console.error("getBusy error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
+}
+
+export async function checkCourseAccess(req, res) {
+  return res.json({
+    success: true,
+  });
 }

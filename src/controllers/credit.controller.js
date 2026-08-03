@@ -106,6 +106,27 @@ export async function buyCredits(req, res) {
 
     // 1️⃣ Insert into credit_packages
     // Insert into credit_packages
+
+
+await db.execute(
+  `
+  UPDATE users
+  SET credits =
+  (
+    SELECT COALESCE(
+      SUM(remainingCredits),
+      0
+    )
+    FROM credit_packages
+    WHERE userId = ?
+    AND expiryDate > NOW()
+  )
+  WHERE id = ?
+  `,
+  [userId, userId]
+);
+
+
 const [pkg] = await db.execute(
   `
   INSERT INTO credit_packages
