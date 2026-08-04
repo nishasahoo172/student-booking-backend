@@ -235,3 +235,106 @@ export async function saveUserCourses(req, res) {
   }
 
 }
+
+/* =========================
+   RESCHEDULE HISTORY
+========================= */
+export async function getRescheduleHistory(req,res){
+
+try{
+
+
+const {
+search="",
+course=""
+}=req.query;
+
+
+
+const [rows]=await db.execute(
+
+`
+SELECT
+
+brh.id,
+
+u.fullName,
+u.email,
+
+c.name AS course,
+
+
+brh.oldRack,
+brh.oldStartTime,
+brh.oldEndTime,
+
+
+brh.newRack,
+brh.newStartTime,
+brh.newEndTime,
+
+
+brh.rescheduledBy,
+brh.createdAt
+
+
+FROM booking_reschedule_history brh
+
+
+JOIN users u
+ON u.id = brh.userId
+
+
+JOIN bookings b
+ON b.id = brh.bookingId
+
+
+JOIN courses c
+ON c.slug = b.course
+
+
+WHERE
+(
+u.fullName LIKE ?
+OR
+u.email LIKE ?
+)
+
+AND
+(
+? = ''
+OR
+c.name = ?
+)
+
+
+ORDER BY brh.createdAt DESC
+
+`,
+[
+`%${search}%`,
+`%${search}%`,
+
+course,
+course
+]
+
+);
+
+
+res.json(rows);
+
+
+}
+catch(err){
+
+console.error(err);
+
+res.status(500).json({
+message:"Failed loading history"
+});
+
+}
+
+
+}
