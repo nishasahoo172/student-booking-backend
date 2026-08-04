@@ -530,7 +530,7 @@ router.put(
         WHERE delta > 0
       `);
 
-    res.json({
+     res.json({
       totalUsers: users.total,
       activeUsers: active.total,
       pendingUsers: pending.total,
@@ -547,7 +547,7 @@ router.put(
   }
   });
 
-router.put(
+  router.put(
   "/users/:id/reactivate",
   async (req, res) => {
 
@@ -576,12 +576,12 @@ router.put(
           "Failed To Reactivate"
       });
     }
-  }
-);
+   }
+    );
 
-router.get(
+  router.get(
   "/users/:id/courses",
-  async (req, res) => {
+   async (req, res) => {
     try {
       const { id } = req.params;
       const [rows] = await db.execute(
@@ -611,10 +611,9 @@ router.get(
       });
     }
   }
-);
+  );
 
 // APPROVE USER COURSE
-
 router.put(
   "/users/:userId/courses/:courseId/approve",
   async (req, res) => {
@@ -625,8 +624,6 @@ router.put(
         userId,
         courseId
       } = req.params;
-
-
       await db.execute(
         `
         UPDATE user_courses
@@ -639,8 +636,6 @@ router.put(
           courseId
         ]
       );
-
-
       res.json({
         success: true,
         message: "Course approved successfully"
@@ -686,8 +681,6 @@ router.put(
           courseId
         ]
       );
-
-
       res.json({
         success:true,
         message:"Course access removed"
@@ -696,9 +689,7 @@ router.put(
 
     }
     catch(err){
-
       console.error(err);
-
       res.status(500).json({
         message:"Failed removing course"
       });
@@ -766,10 +757,7 @@ router.post(
     try {
 
       const { id } = req.params;
-
       const { courseIds } = req.body;
-
-
       for(const courseId of courseIds){
 
         const [existing] = await db.execute(
@@ -832,13 +820,10 @@ router.post(
         }
 
       }
-
-
       res.json({
         success:true,
         message:"Courses assigned successfully"
       });
-
 
     }
     catch(err){
@@ -853,5 +838,72 @@ router.post(
 
   }
 );
+
+
+router.get(
+"/reschedule-history",
+async(req,res)=>{
+
+try{
+
+const [rows]=await db.execute(
+`
+SELECT
+
+rh.id,
+
+u.fullName,
+u.email,
+
+
+c.name AS course,
+
+rh.oldRack,
+rh.oldStartTime,
+rh.oldEndTime,
+
+rh.newRack,
+rh.newStartTime,
+rh.newEndTime,
+
+rh.rescheduledBy,
+rh.createdAt
+
+FROM booking_reschedule_history rh
+
+
+JOIN users u
+ON u.id=rh.userId
+
+
+JOIN bookings b
+ON b.id=rh.bookingId
+
+
+JOIN courses c
+ON c.slug=b.course
+
+
+ORDER BY rh.createdAt DESC
+
+`
+);
+
+
+res.json(rows);
+
+
+}catch(err){
+
+console.error(err);
+
+res.status(500).json({
+message:"Failed loading reschedule history"
+});
+
+}
+
+
+});
 
 export default router;

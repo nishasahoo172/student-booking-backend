@@ -428,13 +428,17 @@ export async function upcomingBooking(req, res) {
     vendor,
     course,
   ]
-);
+  );
 
     if (rows.length === 0) {
       return res.json(null);
     }
 
    const booking = rows[0];
+
+
+
+
 
 const start = new Date(booking.startTime);
 const end = new Date(booking.endTime);
@@ -786,7 +790,7 @@ export async function rescheduleBooking(req, res) {
     }
 
     // Check conflict (ignore current booking)
-const [conflicts] = await db.execute(
+     const [conflicts] = await db.execute(
   `
   SELECT
       id,
@@ -826,6 +830,59 @@ console.log("Received End:", endTime);
 const mysqlStartTime = startTime.replace("T", " ");
 
 const mysqlEndTime = endTime.replace("T", " ");
+
+// Save reschedule history before updating booking
+
+await db.execute(
+`
+INSERT INTO booking_reschedule_history
+(
+ bookingId,
+ userId,
+
+ oldRack,
+ oldStartTime,
+ oldEndTime,
+
+ newRack,
+ newStartTime,
+ newEndTime,
+
+ rescheduledBy,
+ createdAt
+)
+VALUES
+(
+ ?,
+ ?,
+
+ ?,
+ ?,
+ ?,
+
+ ?,
+ ?,
+ ?,
+
+ ?,
+ NOW()
+)
+`,
+[
+ booking.id,
+ userId,
+
+ booking.rack,
+ booking.startTime,
+ booking.endTime,
+
+ rack,
+ mysqlStartTime,
+ mysqlEndTime,
+
+ "Student"
+]
+);
 
 const conn = await db.getConnection();
 
