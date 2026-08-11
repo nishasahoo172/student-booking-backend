@@ -437,9 +437,6 @@ export async function upcomingBooking(req, res) {
    const booking = rows[0];
 
 
-
-
-
 const start = new Date(booking.startTime);
 const end = new Date(booking.endTime);
 // Duration
@@ -468,13 +465,13 @@ const timeLabel =
   })}`;
 
 // Course Display Name
-const courseMap = {
+ const courseMap = {
   "security-scheduler": "CCIE Security",
   "dc-scheduler": "CCIE Data Center",
   "ei-scheduler": "CCIE Enterprise Infrastructure",
-};
+  };
 
-return res.json({
+   return res.json({
   ...booking,
 
   courseTitle:
@@ -487,7 +484,7 @@ return res.json({
   dateLabel,
 
   timeLabel,
-});
+  });
 
 
   } catch (err) {
@@ -615,8 +612,6 @@ export async function getAvailableSlots(req, res) {
                 message: "Missing required parameters."
             });
         }
-
-
          if (!bookingId) {
             return res.status(400).json({
                 message: "Booking ID is required."
@@ -646,8 +641,8 @@ export async function getAvailableSlots(req, res) {
      }
 
      // =========================
-  // Calculate Booking Duration
-  // =========================
+    // Calculate Booking Duration
+   // =========================
 
      const bookingDurationMinutes =
       Math.round(
@@ -716,20 +711,15 @@ export async function getAvailableSlots(req, res) {
     }
 
      // STEP 6 WILL COME HERE
-
      // =========================
      // Remove Busy Slots
      // =========================
 
    const availableSlots = allSlots.filter((slot) => {
-
     return !bookings.some((booking) => {
-
         const bookingStart = new Date(booking.startTime);
         const bookingEnd = new Date(booking.endTime);
-
         return (
-
             slot.startTime < bookingEnd &&
             slot.endTime > bookingStart
 
@@ -743,12 +733,12 @@ export async function getAvailableSlots(req, res) {
    // Return Available Slots
     // =========================
 
-return res.json({
+  return res.json({
   slots: availableSlots.map(slot => ({
     startTime: formatMySQLDateTime(slot.startTime),
     endTime: formatMySQLDateTime(slot.endTime),
   })),
-});
+  });
    
     }
     catch (err) {
