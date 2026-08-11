@@ -117,7 +117,7 @@ export async function addCredits(req, res) {
       ]
     );
 
-// new
+ // new
     await db.execute(
   `
   UPDATE users
@@ -134,7 +134,7 @@ export async function addCredits(req, res) {
   WHERE id = ?
   `,
   [userId, userId]
-);
+  );
 
 
     res.json({
