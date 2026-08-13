@@ -1,3 +1,6 @@
+
 node_modules/
 .env
 logs/
+rack_rental.sql
+rack_rental_mariadb.sql
