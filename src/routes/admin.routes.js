@@ -420,66 +420,78 @@ router.put(
           `,
           [id]
         );
-      await sendMail({
-     to: user.email,
 
-  subject:
-    "CCIE Rack Rentals - Account Status Update",
 
-  html: `
-    <div style="
-      font-family: Arial, sans-serif;    
-      margin: auto;
-      padding: 20px;
-    ">
-      <h2 style="
-        color: #dc2626;
-        margin-bottom: 20px;
+     try {
+  await sendMail({
+    to: user.email,
+
+    subject:
+      "CCIE Rack Rentals - Account Status Update",
+
+    html: `
+      <div style="
+        font-family: Arial, sans-serif;
+        margin: auto;
+        padding: 20px;
       ">
-        Account Status Update
-      </h2>
+        <h2 style="
+          color: #dc2626;
+          margin-bottom: 20px;
+        ">
+          Account Status Update
+        </h2>
 
-      <p>
-        Dear ${user.fullName},
-      </p>
+        <p>
+          Dear ${user.fullName},
+        </p>
 
-      <p>
-        Thank you for your interest in
-        <strong>CCIE Rack Rentals</strong>.
-      </p>
-      <p>
-        We regret to inform you that your account request could not be approved at this time.
-      </p>
-      ${
-        reason?.trim()
-          ? `
-          <p>
-            <strong>
-              Reason for Rejection:
-            </strong>
-            <br>
-            ${reason}
-          </p>
-          `
-          : ""
-      }
-      <p>
-        If you believe this decision was made in error or need additional information, please contact our support team.
-      </p>
-      <br>
-      <p>
-        Best Regards,
+        <p>
+          Thank you for your interest in
+          <strong>CCIE Rack Rentals</strong>.
+        </p>
+
+        <p>
+          We regret to inform you that your account request could not be approved at this time.
+        </p>
+
+        ${
+          reason?.trim()
+            ? `
+            <p>
+              <strong>Reason for Rejection:</strong>
+              <br>
+              ${reason}
+            </p>
+            `
+            : ""
+        }
+
+        <p>
+          If you believe this decision was made in error or need additional information, please contact our support team.
+        </p>
+
         <br>
-        CCIE Rack Rentals Team
-      </p>
 
-    </div>
-  `
-   });
-      res.json({
-        message:
-          "Student rejected successfully",
-      });
+        <p>
+          Best Regards,
+          <br>
+          CCIE Rack Rentals Team
+        </p>
+      </div>
+    `,
+  });
+} catch (mailErr) {
+  console.error(
+    "Rejection email failed:",
+    mailErr.message
+  );
+}
+
+res.json({
+  message: "Student rejected successfully",
+});
+
 
     } catch (err) {
       console.error(err);
