@@ -22,7 +22,11 @@ cron.schedule("* * * * *", async () => {
       JOIN courses c ON c.id = b.courseId
       WHERE b.reminderSent = 0
       AND b.status = 'RESERVED'
-      AND TIMESTAMPDIFF(MINUTE, NOW(), b.startTime)
+      AND TIMESTAMPDIFF(
+      MINUTE,
+      CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+05:30'),
+      b.startTime
+      )
       BETWEEN 19 AND 20
     `);
 
